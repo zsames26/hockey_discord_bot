@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup #vezme HTML a zpracuje do struktury
 class TeamStanding: # třída reprezentuje jeden tym
     def __init__(self, rank: str, name: str, games: str, wins: str, ext_wins: str, ext_losses: str, losses: str, score: str, points: str): 
         #konstruktor, prirazuje hodnoty primo do objektu
-        self.rank = rank 
+        self.rank = rank
         self.name = name
         self.games = games
         self.wins = wins
