@@ -17,6 +17,23 @@ class TeamStanding: # třída reprezentuje jeden tym
     def __str__(self): # magic metoda pro prevedeni objektu na text
         return f"{self.rank} {self.name} | Z: {self.games} | V: {self.wins} | VP: {self.ext_wins} | PP: {self.ext_losses} | P: {self.losses} | Skóre: {self.score} | Body: {self.points}"
 
+class Match:
+    def __init__(self, teams: str, score: str, date_info: str, played: bool, won: bool = False):
+        self.teams = teams
+        self.score = score
+        self.date_info = date_info
+        self.played = played
+        self.won = won
+
+    def __str__(self):
+        if self.played:
+            if self.won:
+                return f"✅ {self.teams} | Výsledek: {self.score} ({self.date_info})"
+            else:
+                return f"❌ {self.teams} | Výsledek: {self.score} ({self.date_info})"
+        else:
+            return f"📅 {self.teams} | Termín: {self.date_info}"
+
 class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
     def __init__(self):
         self.standing_url = "https://ceskyhokej.cz/competition/standings/8"
@@ -50,7 +67,63 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
 
         return standings # po skonceni cyklu vrati plny list standings
 
+    def get_team_matches(self, club_id: int = 86, team_name: str = "HC Česká Lípa") -> list[Match]:
+        matches = []
+        for page in [1, 2]:
+            url = f"https://ceskyhokej.cz/competition/games/8?gameListWidget-filter%5Bclub%5D={club_id}&gameListWidget-page={page}"
+            response = requests.get(url, headers=self.headers)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.text, "html.parser")
+            games_container = soup.find("div", id="snippet-gameListWidget-games")
+
+            if not games_container:
+                continue
+        
+        # Najdeme všechny bloky jednotlivých zápasů na stránce
+            for item in games_container.find_all("a", class_="game-item"):
+                #Názvy týmů
+                teams_div = item.find("div", class_="team-names")
+                teams = " ".join(teams_div.text.split())  # Spojíme názvy týmů do jednoho řetězce
+
+                # Skóre zápasu
+                scores = item.find_all("h6", class_="score")
+                score_text = f"{scores[0].text.strip()}:{scores[1].text.strip()}"
+
+                # Zda byl zápas odehrán
+                played = "bg-blue" in scores[0].get("class", [])
+
+                won = False
+                if played:
+                    # Převedeme textové skóre na int
+                    home_goals = int(scores[0].text.strip())
+                    away_goals = int(scores[1].text.strip())
+
+                    # Rozdělíme názvy týmů 
+                    home_team = teams.split(" - ")[0]
+
+                    if team_name in home_team:
+                        won = home_goals > away_goals
+                    else:
+                        won = away_goals > home_goals
+
+                # Datum a čas zápasu
+                info_div = item.find("div", class_="game-info")
+                paragraphs = info_div.find_all("p")
+                date_info = " ".join(paragraphs[0].text.split()) if paragraphs else ""
+                
+                match = Match(teams, score_text, date_info, played, won)
+                matches.append(match)
+        return matches
+                                   
+
+
 if __name__ == "__main__": #test programu, spusti je jen pri volani primo scraper.py, nebude se importovat do main.py
     scraper = LeagueScraper()
     for team in scraper.get_standings():
         print(team)
+
+if __name__ == "__main__":
+    scraper = LeagueScraper()
+    for match in scraper.get_team_matches():
+        print(match)

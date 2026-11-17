@@ -52,6 +52,39 @@ async def tabulka(ctx):
     embed.set_footer(text="Zdroj: ceskyhokej.cz")  # Nastavení patičky s odkazem na zdroj
     await ctx.send(embed=embed) # odesle embed do kanalu
 
+@bot.command()
+async def HCCL(ctx):
+    #vypis odehranych a budoucich zapasu hccl
+    matches = scraper.get_team_matches(86, "HC Česká Lípa")  # Získání zápasů pro tým HC Česká Lípa
+
+    embed = discord.Embed(
+        title="🏒 Zápasy: HC Česká Lípa",
+        url="https://ceskyhokej.cz/competition/games/8?gameListWidget-filter%5Bclub%5D=86",
+        color=discord.Color.blue()
+    )
+
+    played_text= ""
+    upcoming_text = ""
+
+    for m in matches:
+        if m.played:
+            played_text += f"{m}\n"
+        else:
+            upcoming_text += f"{m}\n"
+# pridani dvou poli do embedu
+    embed.add_field(
+        name="📊 Odehrané zápasy",
+        value=played_text if played_text else "Zatím žádné odehrané zápasy.",
+        inline=False
+    )
+    embed.add_field(
+        name="📅 Nadcházející zápasy",
+        value=upcoming_text if upcoming_text else "Žádné naplánované zápasy.",
+        inline=False
+    )
+
+    embed.set_footer(text="Zdroj: ceskyhokej.cz")
+    await ctx.send(embed=embed)
 # Spuštění bota
 if __name__ == "__main__":
     bot.run(bot_key)
