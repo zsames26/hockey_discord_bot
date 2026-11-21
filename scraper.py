@@ -132,15 +132,39 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
                 match = Match(teams, score_text, date_info, played, won, team_name)
                 matches.append(match)
         return matches #vraci seznam matches s ulozenymi informacemi
-                                   
+    
+    # najde na onlajny.com zápas daného týmu v konkrétní datum a čas
+    def find_onlajny_match(self, team_name: str, date_str: str) -> tuple[str | None, str | None]: # vrací dvojici hodnot kde jsou bud str nebo nic
+        url = f"https://www.onlajny.com/league/index/id/1389?date={date_str}" # url na onlajny
+        response = requests.get(url, headers=self.headers) 
+        response.raise_for_status()
+        #stahne a převede html soubor
+        soup = BeautifulSoup(response.text, "html.parser")
+    # projde všechny položky zápasů na stránce ligy
+        for item in soup.find_all("div", class_="zapasyPolozka"): # koukne do bloku div na tridu 
+            link_tag = item.find("a", class_="tymy") #vytahne ze zapasu odkaz a jmena souperu
+            if not link_tag: # pojistka
+                continue
+    #zkontroluje zda náš hledaný tým je na odkazu
+        if team_name in link_tag.text: 
+            match_url = link_tag["href"] + "/type/all" # odkaz precte z atributu href a prida na konec /type/all aby ze stranky precetl vsechno
+            #najde čas začátku zápasu a vytahne z nej atribut content kde je datum a cas
+            time_span = item.find("span", class_="cas")
+            start_time = time_span["content"] if time_span and time_span.has_attr("content") else None
+            return match_url, start_time #najde zapas a vraci hodnoty
+        
+        return None, None # pokud nas tym nema zapas vyhodi none
 
+#if __name__ == "__main__": # test na cteni url pro onlajny
+#    scraper = LeagueScraper()
+#    print(scraper.find_onlajny_match("HC Česká Lípa", "2026-11-07"))
 
-if __name__ == "__main__": #test programu, spusti je jen pri volani primo scraper.py, nebude se importovat do main.py
-    scraper = LeagueScraper()
-    for team in scraper.get_standings():
-        print(team)
+#if __name__ == "__main__": #test programu, spusti je jen pri volani primo scraper.py, nebude se importovat do main.py
+#   scraper = LeagueScraper()
+#    for team in scraper.get_standings():
+#        print(team)
 
-if __name__ == "__main__":
-    scraper = LeagueScraper()
-    for match in scraper.get_team_matches():
-        print(match)
+#if __name__ == "__main__": #test na zapasy
+#    scraper = LeagueScraper()
+#    for match in scraper.get_team_matches():
+#        print(match)
