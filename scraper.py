@@ -155,6 +155,72 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
         
         return None, None # pokud nas tym nema zapas vyhodi none
 
+    #stáhne skóre, stav zápasu a seznam událostí
+    def get_live_matches(self, match_url: str) -> tuple[str,str,list[str]]:
+        response = requests.get(match_url, headers=self.headers)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        #aktualní skóre
+        score_span = soup.find("span", class_="hlavniSkore")
+        score = score_span.text.strip()
+        if score_span:
+            score = score_span.text.strip()
+        else:
+            score = "0:0"
+
+        status_span = soup.find("span", attrs={"data-field": "status"})
+        if status_span:
+            status = status_span.text.strip()
+        else:
+            status = "Neznámý stav"
+
+        events=[]
+        table = soup.find("table", class_="prubehZapasu")
+        if not table:
+            return score, status, events
+        #řádky nutné otočit protože se informace na onlajnech ukazují jako FIFO takže musíme jít nakonec abychom zjistili prvni info
+        rows = table.find_all("tr")
+        for row in reversed(rows):
+            row_classes = row.get("class", [])
+            #přiřazení ikon
+            if "goal" in row_classes:
+                icon = "🚨"
+            elif "exclusion" in row_classes:
+                icon = "🟨"
+            elif "time" in row_classes:
+                icon = "⏱️"
+            else:
+                continue
+
+            time_td = row.find("td", class_= "second")
+            text_td = row.find("td", class_= "third")
+            if not text_td:
+                continue
+
+            event_time = time_td.text.strip() if time_td else ""
+            # Odstraníme případný čas poslední změny v závorce na konci 
+            last_change = text_td.find("span", class_="last-change")
+            if last_change:
+                last_change.decompose()
+            event_text = " ".join(text_td.text.split())
+
+            if event_time:
+                events.append(f"{icon} **[{event_time}]** {event_text}")
+            else:
+                events.append(f"{icon} {event_text}")
+        return score, status, events
+
+if __name__ == "__main__":
+    scraper = LeagueScraper()
+    url = "https://www.onlajny.com/match/index/date/2026-11-21/id/552224/type/all"
+    score, status, events = scraper.get_live_matches(url)
+
+    print(f"Skóre: {score} | Stav: {status}")
+    print("-" * 40)
+    for event in events:
+        print(event)
+
+
 #if __name__ == "__main__": # test na cteni url pro onlajny
 #    scraper = LeagueScraper()
 #    print(scraper.find_onlajny_match("HC Česká Lípa", "2026-11-07"))
