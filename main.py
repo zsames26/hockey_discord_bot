@@ -13,7 +13,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 # Inicializace bota s prefixem "!" a nastavenými právy
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True)
 
 scraper = LeagueScraper()
 
@@ -52,26 +52,32 @@ async def tabulka(ctx):
     embed.set_footer(text="Zdroj: ceskyhokej.cz")  # Nastavení patičky s odkazem na zdroj
     await ctx.send(embed=embed) # odesle embed do kanalu
 
-@bot.command()
-async def HCCL(ctx):
-    #vypis odehranych a budoucich zapasu hccl
-    matches = scraper.get_team_matches(86, "HC Česká Lípa")  # Získání zápasů pro tým HC Česká Lípa
+@bot.command(aliases=["HCTUR", "HCFRY", "HCCL", "TJJN", "LNP", "HCSJ", "BKNP", "HCVD"]) #prida prikaz matches a k nemu pripoji 8 zkratek => vsechny spousti stejnou fci
+async def matches(ctx):
+    cmd = ctx.invoked_with.upper()  # Získání názvu příkazu, který byl vyvolán (rozumí i malým písmenům)
 
+    if cmd not in scraper.teams: #při !matches vypise text
+        await ctx.send("Zadej zkratku konkrétního týmu: `!HCTUR`, `!HCFRY`, `!HCCL`, `!TJJN`, `!LNP`, `!HCSJ`, `!BKNP`, `!HCVD`")
+        return
+    
+    club_id, team_name = scraper.teams[cmd] # vytahne informace o tymu (id a nazev) 
+    matches = scraper.get_team_matches(club_id, team_name)  # Získání zápasů pro tým 
+    #vypis odehranych a budoucich zapasu hccl
     embed = discord.Embed(
-        title="🏒 Zápasy: HC Česká Lípa",
-        url="https://ceskyhokej.cz/competition/games/8?gameListWidget-filter%5Bclub%5D=86",
+        title=f"🏒 Zápasy: {team_name}",
+        url=f"https://ceskyhokej.cz/competition/games/8?gameListWidget-filter%5Bclub%5D={club_id}",
         color=discord.Color.blue()
     )
-
+    #prazdne promenne
     played_text= ""
     upcoming_text = ""
-
-    for m in matches:
+    #projde zapasy, pokud se odehrali pridaji se do played_text jinak do upcoming_text
+    for m in matches: # vezme zapas pojmenuje ho m, vyhodnoti jestli byl odehrany nebo nadchazejici
         if m.played:
             played_text += f"{m}\n"
         else:
             upcoming_text += f"{m}\n"
-# pridani dvou poli do embedu
+    #pridani dvou poli do embedu
     embed.add_field(
         name="📊 Odehrané zápasy",
         value=played_text if played_text else "Zatím žádné odehrané zápasy.",
@@ -84,7 +90,8 @@ async def HCCL(ctx):
     )
 
     embed.set_footer(text="Zdroj: ceskyhokej.cz")
-    await ctx.send(embed=embed)
+    await ctx.send(embed=embed) #odesle hotovou kartu
+
 # Spuštění bota
 if __name__ == "__main__":
     bot.run(bot_key)

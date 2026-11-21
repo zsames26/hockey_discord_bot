@@ -17,27 +17,43 @@ class TeamStanding: # třída reprezentuje jeden tym
     def __str__(self): # magic metoda pro prevedeni objektu na text
         return f"{self.rank} {self.name} | Z: {self.games} | V: {self.wins} | VP: {self.ext_wins} | PP: {self.ext_losses} | P: {self.losses} | Skóre: {self.score} | Body: {self.points}"
 
-class Match:
-    def __init__(self, teams: str, score: str, date_info: str, played: bool, won: bool = False):
+class Match: #třída reprezentuje jeden zápas
+    def __init__(self, teams: str, score: str, date_info: str, played: bool, won: bool = False, team_name: str = ""):
         self.teams = teams
         self.score = score
         self.date_info = date_info
         self.played = played
         self.won = won
+        self.team_name = team_name
 
     def __str__(self):
+        bold_teams = self.teams.replace(self.team_name, f"**{self.team_name}**") #vezme text soupeřů, vezme sledovaný tým a zvýrazní tučně
         if self.played:
-            if self.won:
-                return f"✅ {self.teams} | Výsledek: {self.score} ({self.date_info})"
+            if self.won: #přiřadí správnou ikonu podle výhry
+                icon = "✅"
             else:
-                return f"❌ {self.teams} | Výsledek: {self.score} ({self.date_info})"
+                icon = "❌"
+            home, away = bold_teams.split(" - ") # Rozdělení na domácí a hosty
+            return f"{icon} {home} {self.score} {away} | ({self.date_info})" #odehraný zápas
         else:
-            return f"📅 {self.teams} | Termín: {self.date_info}"
+            return f"📅 {bold_teams} | Termín: {self.date_info}" #neodehraný zápas
 
 class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
     def __init__(self):
         self.standing_url = "https://ceskyhokej.cz/competition/standings/8"
         self.headers = {"User-Agent": "Mozilla/5.0"} #zmateni nepritele 
+
+        # Slovník všech týmů: "ZKRATKA": (ID_klubu, "Název týmu")
+        self.teams = {
+            "HCTUR": (81, "HC Turnov 1931"),
+            "HCFRY": (83, "HC Frýdlant"),
+            "HCCL":  (86, "HC Česká Lípa"),
+            "TJJN":  (84, "TJ HC Jablonec n/N."),
+            "LNP":   (88, "Lomnice nad Popelkou"),
+            "HCSJ":  (82, "HC Stavební stroje Jičín"),
+            "BKNP":  (265, "BK Nová Paka"),
+            "HCVD":  (87, "HC TS Varnsdorf"),
+        }
 
     def get_standings(self) -> list[TeamStanding]: #rika ze metoda vraci list objektu TeamStanding
         response = requests.get(self.standing_url, headers=self.headers) #pozadavek na web, zisk html a ulozeni do response
@@ -67,21 +83,22 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
 
         return standings # po skonceni cyklu vrati plny list standings
 
-    def get_team_matches(self, club_id: int = 86, team_name: str = "HC Česká Lípa") -> list[Match]:
+    # metoda prijima ciselne id a nazev tymu a vysledek bude list objektu tridy match
+    def get_team_matches(self, club_id: int, team_name: str) -> list[Match]: 
         matches = []
-        for page in [1, 2]:
+        for page in [1, 2]: #web se rozdeluje na 2 stranky
             url = f"https://ceskyhokej.cz/competition/games/8?gameListWidget-filter%5Bclub%5D={club_id}&gameListWidget-page={page}"
-            response = requests.get(url, headers=self.headers)
-            response.raise_for_status()
+            response = requests.get(url, headers=self.headers) #stahne zdroj kod stranky
+            response.raise_for_status() #kdyby byl vypadek stranky
 
-            soup = BeautifulSoup(response.text, "html.parser")
-            games_container = soup.find("div", id="snippet-gameListWidget-games")
+            soup = BeautifulSoup(response.text, "html.parser") # prevod HTML na strom. strukturu
+            games_container = soup.find("div", id="snippet-gameListWidget-games") # vybere cast webu kde jsou zapasy
 
             if not games_container:
                 continue
         
         # Najdeme všechny bloky jednotlivých zápasů na stránce
-            for item in games_container.find_all("a", class_="game-item"):
+            for item in games_container.find_all("a", class_="game-item"): 
                 #Názvy týmů
                 teams_div = item.find("div", class_="team-names")
                 teams = " ".join(teams_div.text.split())  # Spojíme názvy týmů do jednoho řetězce
@@ -90,7 +107,7 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
                 scores = item.find_all("h6", class_="score")
                 score_text = f"{scores[0].text.strip()}:{scores[1].text.strip()}"
 
-                # Zda byl zápas odehrán
+                #U odehraného zápasu má HTML značka zápis <h6 class="score bg-blue"> proto přiřazuji odehrané zápasy díky tomu
                 played = "bg-blue" in scores[0].get("class", [])
 
                 won = False
@@ -99,10 +116,10 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
                     home_goals = int(scores[0].text.strip())
                     away_goals = int(scores[1].text.strip())
 
-                    # Rozdělíme názvy týmů 
+                    # Rozdělíme názvy týmů pomlckou a tym nalevo je domaci
                     home_team = teams.split(" - ")[0]
 
-                    if team_name in home_team:
+                    if team_name in home_team: # podle golu domacich a hostu se urcuje witez
                         won = home_goals > away_goals
                     else:
                         won = away_goals > home_goals
@@ -112,9 +129,9 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
                 paragraphs = info_div.find_all("p")
                 date_info = " ".join(paragraphs[0].text.split()) if paragraphs else ""
                 
-                match = Match(teams, score_text, date_info, played, won)
+                match = Match(teams, score_text, date_info, played, won, team_name)
                 matches.append(match)
-        return matches
+        return matches #vraci seznam matches s ulozenymi informacemi
                                    
 
 
