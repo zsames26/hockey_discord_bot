@@ -24,6 +24,11 @@ scraper = LeagueScraper()
 async def on_ready():
     print(f"Přihlášen jako {bot.user}(ID: {bot.user.id})")
     print("Bot je připraven k akci!")
+    for guild in bot.guilds:
+            for channel in guild.text_channels:
+                if channel.permissions_for(guild.me).send_messages:
+                    await channel.send("🏒 Ahoj, jsem online! Napiš `!help` a zjisti, co všechno umím.")
+                    break
 
 # Testovací přikaz: rekce na přikaz !ping
 #@bot.command()
@@ -218,9 +223,13 @@ async def help_command(ctx):
         "**`!tabulka`**\n"
         "Zobrazí aktuální tabulku soutěže.\n\n"
         "**`!matches`**\n"
-        "Vypíše rozpis zápasů daného týmu při volání zkratky => `!<ZKRATKA>`).\n\n"
+        "Vypíše zkratky týmů pro které chceme zjistit zápasy.\n\n"
+        "**`!<zkratka>`**\n"
+        "Vypíše rozpis zápasů daného týmu při volání zkratky.\n"
+        "Př.: !hccl nebo !HCCL\n\n"
         "**`!live <ZKRATKA> [YYYY-MM-DD]`**\n"
-        "Spustí živé sledování zápasu z Onlajny.com (bez data hledá dnešní zápas).\n\n"
+        "Spustí živé sledování zápasu (bez data hledá dnešní zápas) nebo vypíše průběh již odehraného utkání.\n"
+        "Př.: !live hccl nebo !live HCCL 2026-11-07\n\n"
         "**`!stoplive`**\n"
         "Ručně zastaví probíhající živé sledování nebo čekání na zápas.\n\n"
         "**`!help`**\n"

@@ -220,7 +220,7 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
                 events.append(f"{icon} {event_text}")
         return score, status, events
 
-
+#TESTY
 
 #if __name__ == "__main__": #test na vypsání průběhu minulého zápasu pomocí url
 #    scraper = LeagueScraper()
