@@ -3,6 +3,9 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from scraper import LeagueScraper
+import asyncio
+from datetime import datetime
+from discord.ext import tasks
 
 # Načtení tokenu z .env souboru
 load_dotenv()
@@ -77,6 +80,7 @@ async def matches(ctx):
             played_text += f"{m}\n"
         else:
             upcoming_text += f"{m}\n"
+
     #pridani dvou poli do embedu
     embed.add_field(
         name="📊 Odehrané zápasy",
@@ -91,6 +95,43 @@ async def matches(ctx):
 
     embed.set_footer(text="Zdroj: ceskyhokej.cz")
     await ctx.send(embed=embed) #odesle hotovou kartu
+
+# Proměnné pro uchování stavu živého přenosu
+live_channel = None
+live_url = None
+live_team = None
+sent_events = set() #ukládání událostí
+wait_task = None #odkaz na běžící úkol na pozadí
+
+#smyčka na pozadí co každých 120 s kontroluje stav zápasu
+@tasks.loop(seconds=120)
+async def live_tracker():
+    if not live_channel or not live_url:
+        return
+
+    score, status, events = scraper.get_live_matches(live_url) #přečte ze stránky info a porovná
+    new_messages = []
+    #aby neposílal stejné info 2x
+    for event in events:
+        if event not in sent_events:
+            sent_events.add(event)
+            new_messages.append(event)
+    #když přijde nová událost pošle na discord zprávy po dávkách (discord má limit)
+    if new_messages:
+        chunk = f"**🏒 {live_team} | Stav: {status} | Skóre: {score}**\n"
+        for msg in new_messages:
+            if len(chunk) + len(msg) + 2 > 1900:
+                await live_channel.send(chunk)
+                chunk = ""
+            chunk += f"{msg}\n"
+        if chunk:
+            await live_channel.send(chunk)
+
+    #když zápas už je u konce ukončí smyčku
+    if any("Konec zápasu" in e for e in events):
+        await live_channel.send(f"🏁 **Přenos utkání ({live_team}) byl automaticky ukončen.**")
+        live_tracker.stop()
+
 
 # Spuštění bota
 if __name__ == "__main__":

@@ -140,48 +140,55 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
         response.raise_for_status()
         #stahne a převede html soubor
         soup = BeautifulSoup(response.text, "html.parser")
+        items = soup.find_all("div", class_="zapasyPolozka") #najde třídu se zapasyPolozka kde jsou zapasy (kazda polozka 1 zapas)
+        search_name = team_name.replace(" n/N.", "").strip() #odstraní zkratky aby to bylo stejne na onlajny.com a českém hokeji
+
     # projde všechny položky zápasů na stránce ligy
-        for item in soup.find_all("div", class_="zapasyPolozka"): # koukne do bloku div na tridu 
+        for item in items: # koukne do bloku div na tridu 
             link_tag = item.find("a", class_="tymy") #vytahne ze zapasu odkaz a jmena souperu
             if not link_tag: # pojistka
                 continue
+
     #zkontroluje zda náš hledaný tým je na odkazu
-        if team_name in link_tag.text: 
-            match_url = link_tag["href"] + "/type/all" # odkaz precte z atributu href a prida na konec /type/all aby ze stranky precetl vsechno
-            #najde čas začátku zápasu a vytahne z nej atribut content kde je datum a cas
-            time_span = item.find("span", class_="cas")
-            start_time = time_span["content"] if time_span and time_span.has_attr("content") else None
-            return match_url, start_time #najde zapas a vraci hodnoty
-        
+            if search_name in link_tag.text: 
+                match_url = link_tag["href"] + "/type/all" #když najde hledaný tým, koukne na odkaz href a přidá koncovku /type/all ať vidíme všechny změny
+                time_span = item.find("span", class_="cas") #ze třídy čas vyčte začátek zápasu
+                if time_span and time_span.has_attr("content"): #jestli má time_span atribut content obsahující čas nastaví ho na start_time
+                    start_time = time_span["content"] 
+                else:
+                    None
+                return match_url, start_time
+
         return None, None # pokud nas tym nema zapas vyhodi none
 
     #stáhne skóre, stav zápasu a seznam událostí
     def get_live_matches(self, match_url: str) -> tuple[str,str,list[str]]:
-        response = requests.get(match_url, headers=self.headers)
+        #metoda přijme urpavenou url adresu, stáhne html a převede
+        response = requests.get(match_url, headers=self.headers) 
         response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+        soup = BeautifulSoup(response.text, "html.parser") 
         #aktualní skóre
-        score_span = soup.find("span", class_="hlavniSkore")
-        score = score_span.text.strip()
+        score_span = soup.find("span", class_="hlavniSkore") #vytahne ze stranky vlastni skore
+        score = score_span.text.strip() #strip vždy odebere zbytečné mezery
         if score_span:
             score = score_span.text.strip()
         else:
             score = "0:0"
 
-        status_span = soup.find("span", attrs={"data-field": "status"})
+        status_span = soup.find("span", attrs={"data-field": "status"}) #vytáhne aktuální stav utkání (konec, 1. třetina, ...)
         if status_span:
             status = status_span.text.strip()
         else:
             status = "Neznámý stav"
 
         events=[]
-        table = soup.find("table", class_="prubehZapasu")
+        table = soup.find("table", class_="prubehZapasu") #najde tabulku zapasu a odfiltruje zbytecne info na strance
         if not table:
             return score, status, events
-        #řádky nutné otočit protože se informace na onlajnech ukazují jako FIFO takže musíme jít nakonec abychom zjistili prvni info
+        #řádky nutné otočit protože se informace na onlajnech ukazují jako FIFO takže musíme jít nakonec abychom zjistili prvni info (chronologicky)
         rows = table.find_all("tr")
         for row in reversed(rows):
-            row_classes = row.get("class", [])
+            row_classes = row.get("class", []) #pokaždé přečte řádek, přečte třídu toho řádku a vyhodnotí
             #přiřazení ikon
             if "goal" in row_classes:
                 icon = "🚨"
@@ -192,33 +199,38 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
             else:
                 continue
 
-            time_td = row.find("td", class_= "second")
-            text_td = row.find("td", class_= "third")
+            time_td = row.find("td", class_= "second") #vezme čas v události
+            text_td = row.find("td", class_= "third") #vezme popis
             if not text_td:
                 continue
 
-            event_time = time_td.text.strip() if time_td else ""
+            if time_td:
+                event_time = time_td.text.strip()
+            else:
+                ""
             # Odstraníme případný čas poslední změny v závorce na konci 
             last_change = text_td.find("span", class_="last-change")
             if last_change:
-                last_change.decompose()
+                last_change.decompose() #odstraní z html doplňující značku
             event_text = " ".join(text_td.text.split())
 
-            if event_time:
+            if event_time: #když se hraje
                 events.append(f"{icon} **[{event_time}]** {event_text}")
-            else:
+            else: # začátky a konce třetin
                 events.append(f"{icon} {event_text}")
         return score, status, events
 
-if __name__ == "__main__":
-    scraper = LeagueScraper()
-    url = "https://www.onlajny.com/match/index/date/2026-11-21/id/552224/type/all"
-    score, status, events = scraper.get_live_matches(url)
 
-    print(f"Skóre: {score} | Stav: {status}")
-    print("-" * 40)
-    for event in events:
-        print(event)
+
+#if __name__ == "__main__": #test na vypsání průběhu minulého zápasu pomocí url
+#    scraper = LeagueScraper()
+#    url = "https://www.onlajny.com/match/index/date/2026-11-21/id/552224/type/all"
+#    score, status, events = scraper.get_live_matches(url)
+
+#    print(f"Skóre: {score} | Stav: {status}")
+#    print("-" * 40)
+ #   for event in events:
+ #       print(event)
 
 
 #if __name__ == "__main__": # test na cteni url pro onlajny
