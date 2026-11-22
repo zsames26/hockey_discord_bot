@@ -16,8 +16,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 # Inicializace bota s prefixem "!" a nastavenými právy
-bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True)
-
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None, case_insensitive=True)
 scraper = LeagueScraper()
 
 # Události: bot vypíše zprávu po úspěšném přihlášení
@@ -205,6 +204,38 @@ async def stoplive(ctx):
     else:
         await ctx.send("ℹ️ Momentálně neběží žádné živé sledování.")
 
+#Zobrazí přehled všech příkazů bota a seznam zkratek týmů
+@bot.command(name="help")
+async def help_command(ctx):
+    embed = discord.Embed(
+        title="🏒 Nápověda – Krajská liga mužů (Liberecký kraj)",
+        description="Přehled dostupných příkazů a zkratek jednotlivých týmů:",
+        color=discord.Color.blue()
+    )
+
+    #Sekce se seznamem příkazů
+    commands_text = (
+        "**`!tabulka`**\n"
+        "Zobrazí aktuální tabulku soutěže.\n\n"
+        "**`!matches`**\n"
+        "Vypíše rozpis zápasů daného týmu při volání zkratky => `!<ZKRATKA>`).\n\n"
+        "**`!live <ZKRATKA> [YYYY-MM-DD]`**\n"
+        "Spustí živé sledování zápasu z Onlajny.com (bez data hledá dnešní zápas).\n\n"
+        "**`!stoplive`**\n"
+        "Ručně zastaví probíhající živé sledování nebo čekání na zápas.\n\n"
+        "**`!help`**\n"
+        "Zobrazí tuto nápovědu."
+    )
+    embed.add_field(name="📋 Příkazy", value=commands_text, inline=False)
+    teams_lines = []
+
+    for shortcut, (_, team_name) in scraper.teams.items(): #vybere z týmů zkratku a název týmu
+        teams_lines.append(f"**`{shortcut}`** – {team_name}")
+
+    teams_text = "\n".join(teams_lines)
+    embed.add_field(name="🛡️ Zkratky týmů", value=teams_text, inline=False)
+
+    await ctx.send(embed=embed)
 
 # Spuštění bota
 if __name__ == "__main__":
