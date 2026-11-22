@@ -3,6 +3,9 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from scraper import LeagueScraper
+import asyncio
+from datetime import datetime
+from discord.ext import tasks
 
 # Načtení tokenu z .env souboru
 load_dotenv()
@@ -77,6 +80,7 @@ async def matches(ctx):
             played_text += f"{m}\n"
         else:
             upcoming_text += f"{m}\n"
+
     #pridani dvou poli do embedu
     embed.add_field(
         name="📊 Odehrané zápasy",
@@ -91,6 +95,116 @@ async def matches(ctx):
 
     embed.set_footer(text="Zdroj: ceskyhokej.cz")
     await ctx.send(embed=embed) #odesle hotovou kartu
+
+# Proměnné pro uchování stavu živého přenosu
+live_channel = None
+live_url = None
+live_team = None
+sent_events = set() #ukládání událostí
+wait_task = None #odkaz na běžící úkol na pozadí
+
+#smyčka na pozadí co každých 120 s kontroluje stav zápasu
+@tasks.loop(seconds=120)
+async def live_tracker():
+    if not live_channel or not live_url:
+        return
+
+    score, status, events = scraper.get_live_matches(live_url) #přečte ze stránky info a porovná
+    new_messages = []
+    #aby neposílal stejné info 2x
+    for event in events:
+        if event not in sent_events:
+            sent_events.add(event)
+            new_messages.append(event)
+    #když přijde nová událost pošle na discord zprávy po dávkách (discord má limit)
+    if new_messages:
+        chunk = f"**🏒 {live_team} | Stav: {status} | Skóre: {score}**\n"
+        for msg in new_messages:
+            if len(chunk) + len(msg) + 2 > 1900:
+                await live_channel.send(chunk)
+                chunk = ""
+            chunk += f"{msg}\n"
+        if chunk:
+            await live_channel.send(chunk)
+
+    #když zápas už je u konce ukončí smyčku
+    if any("Konec zápasu" in e for e in events):
+        await live_channel.send(f"🏁 **Přenos utkání ({live_team}) byl automaticky ukončen.**")
+        live_tracker.stop()
+
+#časovač na pozadí a jeho přerušení
+async def wait_and_start(wait_seconds: float):
+    try: #hlídá jestli nebylo nějaké přerušení
+        await asyncio.sleep(wait_seconds) #přeruší chod na wait_seconds ať může dělat cokoli jiného
+        if live_channel and live_team and live_url: #pojistka, ověří zda má vše potřebné o zápase
+            await live_channel.send(f"🔴 **Spouštím živé sledování:** {live_team}\n🔗 {live_url}")
+            live_tracker.start()
+    except asyncio.CancelledError:
+        # Tento blok se spustí, když uživatel čekání zruší přes !stoplive
+        pass
+
+
+# spustí živé sledování zápasu
+@bot.command()
+async def live(ctx, team_shortcut: str = "", date_str: str = ""):
+    global live_channel, live_url, live_team, sent_events, wait_task
+
+    if live_tracker.is_running() or (wait_task and not wait_task.done()): #zkontroluje jestli už neběží sledování
+        await ctx.send(f"⚠️ Už právě sleduji tým **{live_team}**. Nejprve použij `!stoplive`.")
+        return
+
+    cmd = team_shortcut.upper() #pokud není volaný jaký tým hodí to pomocnou hlášku
+    if cmd not in scraper.teams:
+        await ctx.send("Zadej zkratku týmu a volitelně datum (YYYY-MM-DD), např. `!live HCCL 2026-11-07`.")
+        return
+
+    # Pokud uživatel nezadal datum, dosadí se automaticky dnešní
+    if not date_str:
+        date_str = datetime.now().strftime("%Y-%m-%d")
+
+    _, team_name = scraper.teams[cmd] #ze slovoníku vezme podle zkratky id a název tým, "_" udává že nepotřebujeme id 
+    await ctx.send(f"🔍 Hledám zápas týmu **{team_name}** pro datum **{date_str}**...")
+
+    match_url, start_time_str = scraper.find_onlajny_match(team_name, date_str) #vytáhne si url a čas zápasu
+
+    if not match_url: #pokud metoda zápas nenašla vyhodí chybovou hlášku
+        await ctx.send(f"❌ Pro tým **{team_name}** nebyl v den **{date_str}** nalezen žádný zápas na Onlajny.com.")
+        return
+    # Nastavení globálních proměnných pro nový přenos
+    live_channel = ctx.channel
+    live_url = match_url
+    live_team = team_name
+    sent_events = set()
+
+    if start_time_str:
+        start_dt = datetime.fromisoformat(start_time_str) #převede text z html na objekt 
+        now_dt = datetime.now() 
+        wait_seconds = (start_dt - now_dt).total_seconds() #odečte od začátku čas a převede na sekundy
+
+        if wait_seconds > 0: #pokud je rozdíl kladný zápas ještě není
+            minutes = int(wait_seconds // 60)
+            await ctx.send(f"⏳ Zápas **{team_name}** začíná v **{start_dt.strftime('%H:%M')}**. Čekám ({minutes} min) a pak se automaticky zapnu!")
+            wait_task = asyncio.create_task(wait_and_start(wait_seconds)) #bot čeká na pozadí a nebude tak zablokovaný při čekání
+            return
+
+    await ctx.send(f"🔴 **Spouštím živé sledování:** {team_name}\n🔗 {match_url}")
+    live_tracker.start()
+
+#ruční zastavení živého sledování
+@bot.command()
+async def stoplive(ctx):
+    global wait_task
+
+    if live_tracker.is_running(): #pokud už zápas běží
+        live_tracker.stop()
+        await ctx.send("🛑 Živé sledování bylo ručně zastaveno.")
+    elif wait_task and not wait_task.done(): #když zápas ještě nezačal a bot čeká
+        wait_task.cancel()
+        wait_task = None
+        await ctx.send(f"🛑 Plánované čekání na zápas týmu **{live_team}** bylo zrušeno.")
+    else:
+        await ctx.send("ℹ️ Momentálně neběží žádné živé sledování.")
+
 
 # Spuštění bota
 if __name__ == "__main__":
