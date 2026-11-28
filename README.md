@@ -1,10 +1,10 @@
-# 🏒 Hockey Discord Bot – Krajská liga mužů (Liberecký kraj)
+# Hockey Discord Bot – Krajská liga mužů (Liberecký kraj)
 
 Discord bot pro sledování **Krajské ligy mužů Libereckého kraje**. Bot je naprogramován v pythonu. Automaticky stahuje aktuální tabulku soutěže, rozpis odehraných i budoucích zápasů z webu Českého hokeje (`ceskyhokej.cz`) a umožňuje živé textové sledování utkání včetně gólů a vyloučení z portálu `onlajny.com`.
 
 ---
 
-## ✨ Hlavní funkce
+## Hlavní funkce
 
 * **Aktuální tabulka soutěže:** Zobrazení pořadí týmů, odehraných zápasů, skóre a bodů.
 * **Rozpis zápasů týmů:** Výpis minulých výsledků i nadcházejících utkání pro všechny týmy soutěže.
@@ -17,7 +17,7 @@ Discord bot pro sledování **Krajské ligy mužů Libereckého kraje**. Bot je 
 
 ---
 
-## 📋 Dostupné příkazy
+## Dostupné příkazy
 
 | Příkaz | Popis | Příklad použití |
 | :--- | :--- | :--- |
@@ -30,7 +30,7 @@ Discord bot pro sledování **Krajské ligy mužů Libereckého kraje**. Bot je 
 
 ---
 
-## 🛡️ Zkratky týmů
+## Zkratky týmů
 
 | Zkratka | Název týmu |
 | :--- | :--- |
@@ -45,7 +45,7 @@ Discord bot pro sledování **Krajské ligy mužů Libereckého kraje**. Bot je 
 
 ---
 
-## 🗂️ Struktura projektu
+## Struktura projektu
 
 * `main.py` – Hlavní soubor Discord bota (obsluha příkazů, formátování zpráv, časování a smyčka živého přenosu na pozadí).
 * `scraper.py` – Modul pro stahování a parsování HTML dat z webů `ceskyhokej.cz` a `onlajny.com` pomocí knihoven `requests` a `BeautifulSoup4`.
@@ -54,7 +54,7 @@ Discord bot pro sledování **Krajské ligy mužů Libereckého kraje**. Bot je 
 
 ---
 
-## ⚙️ Instalace a spuštění
+## Instalace a spuštění
 
 1. **Naklonování repozitáře:**
    ```
