@@ -134,7 +134,7 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
         return matches #vraci seznam matches s ulozenymi informacemi
     
     # najde na onlajny.com zápas daného týmu v konkrétní datum a čas
-    def find_onlajny_match(self, team_name: str, date_str: str) -> tuple[str | None, str | None]: # vrací dvojici hodnot kde jsou bud str nebo nic
+    def find_onlajny_match(self, team_name: str, date_str: str) -> tuple[str | None, str | None, str | None]: # vrací dvojici hodnot kde jsou bud str nebo nic
         url = f"https://www.onlajny.com/league/index/id/1389?date={date_str}" # url na onlajny
         response = requests.get(url, headers=self.headers) 
         response.raise_for_status()
@@ -149,17 +149,19 @@ class LeagueScraper: #třída pro zisk dat z webu(zapouzdreni)
             if not link_tag: # pojistka
                 continue
 
+            match_title = link_tag.get_text(" ", strip=True)
     #zkontroluje zda náš hledaný tým je na odkazu
-            if search_name in link_tag.text: 
+            if search_name in match_title: 
                 match_url = link_tag["href"] + "/type/all" #když najde hledaný tým, koukne na odkaz href a přidá koncovku /type/all ať vidíme všechny změny
                 time_span = item.find("span", class_="cas") #ze třídy čas vyčte začátek zápasu
                 if time_span and time_span.has_attr("content"): #jestli má time_span atribut content obsahující čas nastaví ho na start_time
                     start_time = time_span["content"] 
                 else:
-                    None
-                return match_url, start_time
+                    start_time = None
 
-        return None, None # pokud nas tym nema zapas vyhodi none
+                return match_url, start_time, match_title # Vracíme 3 hodnoty: URL, čas začátku a celý název utkání (Domácí - Hosté)
+
+        return None, None, None # pokud nas tym nema zapas vyhodi none
 
     #stáhne skóre, stav zápasu a seznam událostí
     def get_live_matches(self, match_url: str) -> tuple[str,str,list[str]]:

@@ -13,24 +13,26 @@ class TestLeagueScraper(unittest.TestCase):
         self.assertEqual(self.scraper.teams["HCTUR"], (81, "HC Turnov 1931"))
 
     def test_find_onlajny_match_valid(self):#Ověří nalezení známého odehraného zápasu na Onlajny.com
-        match_url, start_time = self.scraper.find_onlajny_match("HC Česká Lípa", "2026-11-07")
+        match_url, start_time, match_title = self.scraper.find_onlajny_match("HC Česká Lípa", "2026-11-07")
         self.assertIsNotNone(match_url)
         self.assertTrue(match_url.endswith("/type/all"))
         self.assertIsNotNone(start_time)
+        self.assertIsNotNone(match_title)
 
     def test_find_onlajny_match_invalid_date(self):# Ověří, že pro datum bez zápasu metoda vrátí (None, None)
-        match_url, start_time = self.scraper.find_onlajny_match("HC Česká Lípa", "2026-07-15")
+        match_url, start_time, match_title = self.scraper.find_onlajny_match("HC Česká Lípa", "2026-07-15")
         self.assertIsNone(match_url)
         self.assertIsNone(start_time)
+        self.assertIsNone(match_title)
 
     def test_unique_id(self):#Ověří, že žádný tým ve slovníku nemá duplicitní ID
         ids = [team_id for team_id, _ in self.scraper.teams.values()]
         self.assertEqual(len(ids), len(set(ids)))
 
     def test_get_live_matches(self):#Ověří načtení skóre a událostí z odehraného zápasu
-        match_url, _ = self.scraper.find_onlajny_match("HC Česká Lípa", "2026-11-07")
+        match_url, _, _ = self.scraper.find_onlajny_match("HC Česká Lípa", "2026-11-07")
         score, status, events = self.scraper.get_live_matches(match_url)
-        
+    
         self.assertIsNotNone(score)
         self.assertIn(status, ["Konec zápasu", "po s.n.", "po prodl."])
         self.assertGreater(len(events), 0)

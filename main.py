@@ -169,7 +169,7 @@ async def live(ctx, team_shortcut: str = "", date_str: str = ""):
     _, team_name = scraper.teams[cmd] #ze slovoníku vezme podle zkratky id a název tým, "_" udává že nepotřebujeme id 
     await ctx.send(f"🔍 Hledám zápas týmu **{team_name}** pro datum **{date_str}**...")
 
-    match_url, start_time_str = scraper.find_onlajny_match(team_name, date_str) #vytáhne si url a čas zápasu
+    match_url, start_time_str, match_title = scraper.find_onlajny_match(team_name, date_str) #vytáhne si url a čas zápasu
 
     if not match_url: #pokud metoda zápas nenašla vyhodí chybovou hlášku
         await ctx.send(f"❌ Pro tým **{team_name}** nebyl v den **{date_str}** nalezen žádný zápas na Onlajny.com.")
@@ -177,7 +177,10 @@ async def live(ctx, team_shortcut: str = "", date_str: str = ""):
     # Nastavení globálních proměnných pro nový přenos
     live_channel = ctx.channel
     live_url = match_url
-    live_team = team_name
+    if match_title:
+        live_team = match_title
+    else:
+        live_team = team_name
     sent_events = set()
 
     if start_time_str:
